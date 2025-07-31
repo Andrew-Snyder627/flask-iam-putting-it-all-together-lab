@@ -63,8 +63,15 @@ class Recipe(db.Model):
 
 
 class UserSchema(Schema):
-    pass
+    id = fields.Int()
+    username = fields.Str()
+    image_url = fields.Str()
+    bio = fields.Str()
 
 
 class RecipeSchema(Schema):
-    pass
+    id = fields.Int()
+    title = fields.Str()
+    instructions = fields.Str()
+    minutes_to_complete = fields.Int()
+    user = fields.Nested(UserSchema)
