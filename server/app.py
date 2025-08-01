@@ -7,20 +7,62 @@ from sqlalchemy.exc import IntegrityError
 from config import app, db, api
 from models import User, Recipe, UserSchema, RecipeSchema
 
+
 class Signup(Resource):
-    pass
+    def post(self):
+        data = request.get_json()
+        errors = []
+
+        username = data.get('username')
+        password = data.get('password')
+        image_url = data.get('image_url')
+        bio = data.get('bio')
+
+        if not username:
+            errors.append("Username is required.")
+        if not password:
+            errors.append("Password is required.")
+
+        if errors:
+            return {"errors": errors}, 422
+
+        user = User(username=username, image_url=image_url, bio=bio)
+        try:
+            user.password_hash = password  # Trigger the setter
+            db.session.add(user)
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            return {'errors': ["Username must be unique."]}, 422
+        except ValueError as e:
+            db.session.rollback()
+            return {'errors': [str(e)]}, 422
+
+        session['user_id'] = user.id
+        return UserSchema().dump(user), 201
+
 
 class CheckSession(Resource):
-    pass
+    def get(self):
+        user_id = session.get('user_id')
+        if user_id:
+            user = User.query.get(user_id)
+            if user:
+                return UserSchema().dump(user), 200
+        return {'error': 'Unauthorized'}, 401
+
 
 class Login(Resource):
     pass
 
+
 class Logout(Resource):
     pass
 
+
 class RecipeIndex(Resource):
     pass
+
 
 api.add_resource(Signup, '/signup', endpoint='signup')
 api.add_resource(CheckSession, '/check_session', endpoint='check_session')
