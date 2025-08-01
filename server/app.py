@@ -53,15 +53,70 @@ class CheckSession(Resource):
 
 
 class Login(Resource):
-    pass
+    def post(self):
+        data = request.get_json()
+        username = data.get('username')
+        password = data.get('password')
+        if not username or not password:
+            return {'error': 'Username and password required.'}, 401
+
+        user = User.query.filter_by(username=username).first()
+        if user and user.authenticate(password):
+            session['user_id'] = user.id
+            return UserSchema().dump(user), 200
+        else:
+            return {'error': 'Invalid username or password.'}, 401
 
 
 class Logout(Resource):
-    pass
+    def delete(self):
+        if session.get('user_id'):
+            session.pop('user_id', None)
+            return '', 204
+        else:
+            return {'error': 'Unauthorized'}, 401
 
 
 class RecipeIndex(Resource):
-    pass
+    def get(self):
+        if not session.get('user_id'):
+            return {'error': 'Unauthorized'}, 401
+        recipes = Recipe.query.all()
+        return RecipeSchema(many=True).dump(recipes), 200
+
+    def post(self):
+        if not session.get('user_id'):
+            return {'error': 'Unauthorized'}, 401
+
+        data = request.get_json()
+        errors = []
+
+        title = data.get('title')
+        instructions = data.get('instructions')
+        minutes = data.get('minutes_to_complete')
+
+        if not title:
+            errors.append('Title is required.')
+        if not instructions or len(instructions) < 50:
+            errors.append('Instructions must be at least 50 characters.')
+        if errors:
+            return {'errors': errors}, 422
+
+        user_id = session.get('user_id')
+        recipe = Recipe(
+            title=title,
+            instructions=instructions,
+            minutes_to_complete=minutes,
+            user_id=user_id
+        )
+        try:
+            db.session.add(recipe)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            return {'errors': [str(e)]}, 422
+
+        return RecipeSchema().dump(recipe), 201
 
 
 api.add_resource(Signup, '/signup', endpoint='signup')
